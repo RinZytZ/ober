@@ -4,7 +4,7 @@ from discord.ext import commands
 import asyncio
 from datetime import timedelta
 
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("API_TOKEN")
 PREFIX = "обер-"
 
 # Запрещённые слова (базовый список, редактируй прямо здесь)
