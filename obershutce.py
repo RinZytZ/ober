@@ -5,7 +5,7 @@ import asyncio
 from datetime import timedelta
 
 TOKEN = os.getenv("API_TOKEN")
-PREFIX = "!"
+PREFIX = "обер-"
 
 # Запрещённые подстроки (мутит, если они ЕСТЬ в сообщении)
 bad_words = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
