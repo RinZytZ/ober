@@ -1,150 +1,124 @@
 import os
 import discord
-from discord.ext import commands
-import asyncio
-from datetime import timedelta
+import json
+from datetime import datetime, timedelta
 
 TOKEN = os.getenv("API_TOKEN")
-PREFIX = "обер-"
-
-# Запрещённые подстроки (мутит, если они ЕСТЬ в сообщении)
-bad_words = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
-
-# Режим контроля
-control_mode = {}
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
+client = discord.Client(intents=intents)
 
-def is_admin(ctx):
-    return ctx.author.guild_permissions.administrator
+# ===== НАСТРОЙКИ =====
+bad_words = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
+control_mode = {}
+CONTROL_FILE = "control_mode.json"
 
-def contains_bad_word(text):
-    """Возвращает True, если любая запрещённая подстрока есть в тексте"""
-    text_lower = text.lower()
-    for word in bad_words:
-        if word in text_lower:
-            return True
-    return False
+# Загружаем режим контроля
+if os.path.exists(CONTROL_FILE):
+    with open(CONTROL_FILE, "r", encoding="utf-8") as f:
+        control_mode = json.load(f)
 
-@bot.event
+def save_control_mode():
+    with open(CONTROL_FILE, "w", encoding="utf-8") as f:
+        json.dump(control_mode, f, ensure_ascii=False, indent=2)
+
+# ===== СОБЫТИЯ =====
+@client.event
 async def on_ready():
-    print(f"🪖 {bot.user} готов к обороне!")
-    print(f"Запрещённых подстрок: {bad_words}")
+    print(f"🪖 Обершутце активирован: {client.user}")
+    print(f"Запрещённых слов: {bad_words}")
+    print(f"Режим контроля активен на: {list(control_mode.keys())}")
 
-@bot.event
+@client.event
 async def on_message(message):
-    if message.author.bot:
+    if message.author == client.user:
         return
     
     if message.guild is None:
         return
     
-    # Режим контроля
+    # ===== РЕЖИМ КОНТРОЛЯ =====
     if control_mode.get(str(message.guild.id), False):
-        should_delete = False
+        is_plain_text = (
+            not message.attachments and
+            not message.embeds and
+            not message.flags.crossposted and
+            message.type == discord.MessageType.default
+        )
         
-        if message.flags.crossposted or message.type == discord.MessageType.forward:
-            should_delete = True
-        
-        if message.attachments:
-            should_delete = True
-        
-        if message.embeds:
-            should_delete = True
-        
-        if should_delete:
+        if not is_plain_text:
             try:
                 await message.delete()
-                print(f"☂️ Удалено (режим контроля): {message.author.name} -> {message.content}")
+                print(f"☂️ Удалено (контроль) от {message.author.name}")
             except:
                 pass
             return
     
-    # Проверка на запрещённые подстроки
-    if contains_bad_word(message.content):
-        try:
-            await message.author.timeout(timedelta(minutes=1), reason="Запрещённая подстрока")
-            await message.delete()
-            print(f"🪖 ЗАМУТИЛ {message.author.name} за: {message.content}")
-        except Exception as e:
-            print(f"Ошибка мута: {e}")
+    # ===== ОБРАБОТКА КОМАНД =====
+    if not message.content.startswith("!"):
+        # Обычное сообщение — проверка на запрещённые слова
+        for word in bad_words:
+            if word in message.content.lower():
+                try:
+                    await message.author.timeout(discord.utils.timedelta(minutes=1))
+                    await message.delete()
+                    print(f"🪖 Мут {message.author.name} за: {word}")
+                except:
+                    pass
+                break
         return
     
-    await bot.process_commands(message)
-
-@bot.command(name="отзовись")
-async def respond(ctx):
-    if not is_admin(ctx):
-        return
-    await ctx.send("Так точно!")
-
-@bot.command(name="добавить_слово")
-async def add_word(ctx, *, word: str):
-    if not is_admin(ctx):
-        return
+    # Разбор команд
+    cmd = message.content[1:].lower().split()[0] if message.content[1:] else ""
+    args = message.content[1:].split()[1:] if len(message.content[1:].split()) > 1 else []
     
-    word_lower = word.lower()
-    if word_lower not in bad_words:
-        bad_words.append(word_lower)
-        await ctx.send(f"🪖 Подстрока `{word_lower}` добавлена в список")
-
-@bot.command(name="удалить_слово")
-async def remove_word(ctx, *, word: str):
-    if not is_admin(ctx):
-        return
+    # ===== !отзовись =====
+    if cmd == "отзовись":
+        if message.author.guild_permissions.administrator:
+            await message.channel.send("Так точно!")
     
-    word_lower = word.lower()
-    if word_lower in bad_words:
-        bad_words.remove(word_lower)
-        await ctx.send(f"🪖 Подстрока `{word_lower}` удалена из списка")
-
-@bot.command(name="список_слов")
-async def list_words(ctx):
-    if not is_admin(ctx):
-        return
+    # ===== !добавить_слово =====
+    elif cmd == "добавить_слово":
+        if message.author.guild_permissions.administrator and args:
+            word = args[0].lower()
+            if word not in bad_words:
+                bad_words.append(word)
+                await message.channel.send(f"🪖 Слово `{word}` добавлено")
     
-    if bad_words:
-        await ctx.send(f"🪖 Запрещённые подстроки: {', '.join(bad_words)}")
-    else:
-        await ctx.send("🪖 Список пуст")
-
-@bot.command(name="контроль")
-async def toggle_control(ctx):
-    if not is_admin(ctx):
-        return
+    # ===== !удалить_слово =====
+    elif cmd == "удалить_слово":
+        if message.author.guild_permissions.administrator and args:
+            word = args[0].lower()
+            if word in bad_words:
+                bad_words.remove(word)
+                await message.channel.send(f"🪖 Слово `{word}` удалено")
     
-    guild_id = str(ctx.guild.id)
-    new_state = not control_mode.get(guild_id, False)
-    control_mode[guild_id] = new_state
+    # ===== !список_слов =====
+    elif cmd == "список_слов":
+        if message.author.guild_permissions.administrator:
+            await message.channel.send(f"🪖 Запрещённые слова: {', '.join(bad_words)}")
     
-    if new_state:
-        await ctx.send("🪖 **ACHTUNG!** Режим контроля активирован!\nВсе пересылки, гифки, фото и видео будут уничтожены.\nFeindliche Nachrichten werden eliminiert!")
-    else:
-        await ctx.send("🪖 Режим контроля деактивирован. Возвращаемся к обычной обороне.")
-
-@bot.command(name="статус")
-async def status(ctx):
-    if not is_admin(ctx):
-        return
+    # ===== !контроль =====
+    elif cmd == "контроль":
+        if message.author.guild_permissions.administrator:
+            guild_id = str(message.guild.id)
+            control_mode[guild_id] = not control_mode.get(guild_id, False)
+            save_control_mode()
+            
+            if control_mode[guild_id]:
+                await message.channel.send("🪖 **ACHTUNG!** Режим контроля активирован!\nВсе пересылки, картинки, гифки, видео и ссылки будут уничтожены.")
+            else:
+                await message.channel.send("🪖 Режим контроля деактивирован.")
     
-    mode = "ВКЛЮЧЁН" if control_mode.get(str(ctx.guild.id), False) else "ВЫКЛЮЧЁН"
-    await ctx.send(f"🪖 Режим контроля: {mode}\n🪖 Подстрок в списке: {len(bad_words)}")
+    # ===== !статус =====
+    elif cmd == "статус":
+        if message.author.guild_permissions.administrator:
+            mode = "ВКЛЮЧЁН" if control_mode.get(str(message.guild.id), False) else "ВЫКЛЮЧЁН"
+            await message.channel.send(f"🪖 Режим контроля: {mode}\n🪖 Слов в списке: {len(bad_words)}")
 
-async def main():
-    while True:
-        try:
-            async with bot:
-                await bot.start(TOKEN)
-        except Exception as e:
-            print(f"🪖 Ошибка: {e}")
-            import traceback
-            traceback.print_exc()
-            print("Перезапуск через 5 секунд...")
-            await asyncio.sleep(5)
-
+# ===== ЗАПУСК =====
 if __name__ == "__main__":
-    asyncio.run(main())
+    client.run(TOKEN)
