@@ -3,6 +3,7 @@ from discord.ext import commands
 import random
 import asyncio
 import os
+from datetime import timedelta
 
 TOKEN = os.getenv("API_TOKEN")
 ADMIN_ID = 991057181677850694
@@ -42,13 +43,20 @@ async def on_message(message):
     has_forbidden = any(word in content_lower for word in FORBIDDEN_WORDS)
     
     if has_forbidden:
+        # Мут на 1 минуту в любом случае
+        try:
+            await message.author.timeout(timedelta(minutes=1), reason="Запрещённое слово")
+        except:
+            pass
+        
         # 50% удаляем, 50% отвечаем фразой
         if random.random() < 0.5:
             await message.delete()
-            print(f"Удалено от {message.author.name}")
+            print(f"Удалено и замучено от {message.author.name}")
         else:
             phrase = random.choice(REPLY_PHRASES)
             await message.channel.send(f"🪖 {message.author.mention}, {phrase}")
+            print(f"Фраза и мут для {message.author.name}")
     
     await bot.process_commands(message)
 
