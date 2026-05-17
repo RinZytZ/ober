@@ -1,124 +1,80 @@
-import os
 import discord
-import json
-from datetime import datetime, timedelta
+from discord.ext import commands
+import random
+import asyncio
+import os
 
 TOKEN = os.getenv("API_TOKEN")
+ADMIN_ID = 991057181677850694
+
+# Запрещённые слова
+FORBIDDEN_WORDS = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
+
+# Фразы для уебков (вместо удаления с 50% шансом)
+REPLY_PHRASES = [
+    "Очень сука смешно урод",
+    "Иди нахуй, пес",
+    "Ты ебанутый?",
+    "Завали ебало",
+    "Очередной даун",
+    "В рот ебал"
+]
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ===== НАСТРОЙКИ =====
-bad_words = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
-control_mode = {}
-CONTROL_FILE = "control_mode.json"
-
-# Загружаем режим контроля
-if os.path.exists(CONTROL_FILE):
-    with open(CONTROL_FILE, "r", encoding="utf-8") as f:
-        control_mode = json.load(f)
-
-def save_control_mode():
-    with open(CONTROL_FILE, "w", encoding="utf-8") as f:
-        json.dump(control_mode, f, ensure_ascii=False, indent=2)
-
-# ===== СОБЫТИЯ =====
-@client.event
+@bot.event
 async def on_ready():
-    print(f"🪖 Обершутце активирован: {client.user}")
-    print(f"Запрещённых слов: {bad_words}")
-    print(f"Режим контроля активен на: {list(control_mode.keys())}")
+    print(f"🪖 {bot.user} — готов!")
 
-@client.event
+@bot.event
 async def on_message(message):
-    if message.author == client.user:
+    if message.author == bot.user or message.author.bot:
         return
     
     if message.guild is None:
         return
     
-    # ===== РЕЖИМ КОНТРОЛЯ =====
-    if control_mode.get(str(message.guild.id), False):
-        is_plain_text = (
-            not message.attachments and
-            not message.embeds and
-            not message.flags.crossposted and
-            message.type == discord.MessageType.default
-        )
-        
-        if not is_plain_text:
-            try:
-                await message.delete()
-                print(f"☂️ Удалено (контроль) от {message.author.name}")
-            except:
-                pass
-            return
+    content_lower = message.content.lower()
+    has_forbidden = any(word in content_lower for word in FORBIDDEN_WORDS)
     
-    # ===== ОБРАБОТКА КОМАНД =====
-    if not message.content.startswith("!"):
-        # Обычное сообщение — проверка на запрещённые слова
-        for word in bad_words:
-            if word in message.content.lower():
-                try:
-                    await message.author.timeout(discord.utils.timedelta(minutes=1))
-                    await message.delete()
-                    print(f"🪖 Мут {message.author.name} за: {word}")
-                except:
-                    pass
-                break
-        return
+    if has_forbidden:
+        # 50% удаляем, 50% отвечаем фразой
+        if random.random() < 0.5:
+            await message.delete()
+            print(f"Удалено от {message.author.name}")
+        else:
+            phrase = random.choice(REPLY_PHRASES)
+            await message.channel.send(f"🪖 {message.author.mention}, {phrase}")
     
-    # Разбор команд
-    cmd = message.content[1:].lower().split()[0] if message.content[1:] else ""
-    args = message.content[1:].split()[1:] if len(message.content[1:].split()) > 1 else []
-    
-    # ===== !отзовись =====
-    if cmd == "отзовись":
-        if message.author.guild_permissions.administrator:
-            await message.channel.send("Так точно!")
-    
-    # ===== !добавить_слово =====
-    elif cmd == "добавить_слово":
-        if message.author.guild_permissions.administrator and args:
-            word = args[0].lower()
-            if word not in bad_words:
-                bad_words.append(word)
-                await message.channel.send(f"🪖 Слово `{word}` добавлено")
-    
-    # ===== !удалить_слово =====
-    elif cmd == "удалить_слово":
-        if message.author.guild_permissions.administrator and args:
-            word = args[0].lower()
-            if word in bad_words:
-                bad_words.remove(word)
-                await message.channel.send(f"🪖 Слово `{word}` удалено")
-    
-    # ===== !список_слов =====
-    elif cmd == "список_слов":
-        if message.author.guild_permissions.administrator:
-            await message.channel.send(f"🪖 Запрещённые слова: {', '.join(bad_words)}")
-    
-    # ===== !контроль =====
-    elif cmd == "контроль":
-        if message.author.guild_permissions.administrator:
-            guild_id = str(message.guild.id)
-            control_mode[guild_id] = not control_mode.get(guild_id, False)
-            save_control_mode()
-            
-            if control_mode[guild_id]:
-                await message.channel.send("🪖 **ACHTUNG!** Режим контроля активирован!\nВсе пересылки, картинки, гифки, видео и ссылки будут уничтожены.")
-            else:
-                await message.channel.send("🪖 Режим контроля деактивирован.")
-    
-    # ===== !статус =====
-    elif cmd == "статус":
-        if message.author.guild_permissions.administrator:
-            mode = "ВКЛЮЧЁН" if control_mode.get(str(message.guild.id), False) else "ВЫКЛЮЧЁН"
-            await message.channel.send(f"🪖 Режим контроля: {mode}\n🪖 Слов в списке: {len(bad_words)}")
+    await bot.process_commands(message)
 
-# ===== ЗАПУСК =====
-if __name__ == "__main__":
-    client.run(TOKEN)
+# Простые команды
+@bot.command(name="отзовись")
+async def respond(ctx):
+    if ctx.author.guild_permissions.administrator:
+        await ctx.send("Так точно!")
+
+@bot.command(name="добавить_слово")
+async def add_word(ctx, *, word: str):
+    if ctx.author.guild_permissions.administrator:
+        word_lower = word.lower()
+        if word_lower not in FORBIDDEN_WORDS:
+            FORBIDDEN_WORDS.append(word_lower)
+
+@bot.command(name="удалить_слово")
+async def remove_word(ctx, *, word: str):
+    if ctx.author.guild_permissions.administrator:
+        word_lower = word.lower()
+        if word_lower in FORBIDDEN_WORDS:
+            FORBIDDEN_WORDS.remove(word_lower)
+
+@bot.command(name="список_слов")
+async def list_words(ctx):
+    if ctx.author.guild_permissions.administrator:
+        await ctx.send(f"🪖 Слова: {', '.join(FORBIDDEN_WORDS)}")
+
+bot.run(TOKEN)
