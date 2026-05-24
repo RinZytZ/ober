@@ -3,36 +3,48 @@ from discord.ext import commands
 import random
 import asyncio
 import os
+import logging
 from datetime import timedelta
 
+# ЗАТКНИ ЛОГИ
+logging.getLogger('discord').setLevel(logging.CRITICAL)
+logging.getLogger('discord.gateway').setLevel(logging.CRITICAL)
+
 TOKEN = os.getenv("API_TOKEN")
+ADMIN_ID = 991057181677850694  # Твой ID, The Deep
+
+PREFIX = "хоум-"
 
 # Запрещённые слова
 FORBIDDEN_WORDS = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
 
-# Фразы Хоумлендера (высокомерно, пафосно, жестоко)
+# Фразы Хоумлендера
 REPLY_PHRASES = [
     "Ты никто.",
     "Заткнись, уебок.",
-    "Ты серьезно? Я спасаю мир, а ты пишешь эту хуйню.",
+    "Я спасаю мир, а ты пишешь эту хуйню.",
     "Ещё слово — и ты полетишь с крыши.",
     "Я бог. Ты — мусор.",
     "Vought заплатит за твою риторику? Нет? Тогда иди нахуй.",
     "Твоё мнение ничего не значит.",
     "Ты слаб. Как и все вы.",
     "Я всё вижу. И ты мне не нравишься.",
-    "Ещё одна такая хуйня — и ты исчезнешь."
+    "Жалкий уебок, даже The Deep и то полезнее.",
+    "А ну цдалил нахуй а то переебашу тут всех"
 ]
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="хоум-", intents=intents)
+bot = commands.Bot(command_prefix=PREFIX, intents=intents)
+
+def is_admin(ctx):
+    return ctx.author.id == ADMIN_ID
 
 @bot.event
 async def on_ready():
-    print(f"🇺🇸 {bot.user} — Я — Хоумлендер. И я здесь, чтобы навести порядок.")
+    print(f"🇺🇸 {bot.user} — Хоумлендер в деле. Префикс: {PREFIX}")
 
 @bot.event
 async def on_message(message):
@@ -46,48 +58,48 @@ async def on_message(message):
     has_forbidden = any(word in content_lower for word in FORBIDDEN_WORDS)
     
     if has_forbidden:
-        # Мут на 1 минуту
         try:
             await message.author.timeout(timedelta(minutes=1), reason="Запрещённое слово")
         except:
             pass
         
-        # 50% удаляем, 50% отвечаем фразой Хоумлендера
         if random.random() < 0.5:
             await message.delete()
-            print(f"Удалено и замучено от {message.author.name}")
         else:
             phrase = random.choice(REPLY_PHRASES)
             await message.channel.send(f"🇺🇸 **{message.author.mention}**\n{phrase}")
-            print(f"Хоумлендер уничтожил {message.author.name}")
     
     await bot.process_commands(message)
 
-# Команды
+# ===== КОМАНДЫ ТОЛЬКО ДЛЯ ТЕБЯ (THE DEEP) =====
 @bot.command(name="отзовись")
 async def respond(ctx):
-    if ctx.author.guild_permissions.administrator:
-        await ctx.send("🇺🇸 Я здесь. Всегда.")
+    if not is_admin(ctx):
+        return
+    await ctx.send("🇺🇸 Я здесь. Всегда. А ты, The Deep, иди корми рыб.")
 
 @bot.command(name="добавить_слово")
 async def add_word(ctx, *, word: str):
-    if ctx.author.guild_permissions.administrator:
-        word_lower = word.lower()
-        if word_lower not in FORBIDDEN_WORDS:
-            FORBIDDEN_WORDS.append(word_lower)
-            await ctx.send(f"🇺🇸 Слово `{word_lower}` добавлено в чёрный список.")
+    if not is_admin(ctx):
+        return
+    word_lower = word.lower()
+    if word_lower not in FORBIDDEN_WORDS:
+        FORBIDDEN_WORDS.append(word_lower)
+        await ctx.send(f"🇺🇸 Слово `{word_lower}` добавлено.")
 
 @bot.command(name="удалить_слово")
 async def remove_word(ctx, *, word: str):
-    if ctx.author.guild_permissions.administrator:
-        word_lower = word.lower()
-        if word_lower in FORBIDDEN_WORDS:
-            FORBIDDEN_WORDS.remove(word_lower)
-            await ctx.send(f"🇺🇸 Слово `{word_lower}` удалено.")
+    if not is_admin(ctx):
+        return
+    word_lower = word.lower()
+    if word_lower in FORBIDDEN_WORDS:
+        FORBIDDEN_WORDS.remove(word_lower)
+        await ctx.send(f"🇺🇸 Слово `{word_lower}` удалено.")
 
 @bot.command(name="список_слов")
 async def list_words(ctx):
-    if ctx.author.guild_permissions.administrator:
-        await ctx.send(f"🇺🇸 Запрещённые слова: {', '.join(FORBIDDEN_WORDS)}")
+    if not is_admin(ctx):
+        return
+    await ctx.send(f"🇺🇸 Запрещённые слова: {', '.join(FORBIDDEN_WORDS)}")
 
 bot.run(TOKEN)
