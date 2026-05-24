@@ -6,19 +6,22 @@ import os
 from datetime import timedelta
 
 TOKEN = os.getenv("API_TOKEN")
-ADMIN_ID = 991057181677850694
 
 # Запрещённые слова
 FORBIDDEN_WORDS = ["ронз", "нз", "бег", "nz", "чел", "chel", "run", "67"]
 
-# Фразы для уебков (вместо удаления с 50% шансом)
+# Фразы Хоумлендера (высокомерно, пафосно, жестоко)
 REPLY_PHRASES = [
-    "Очень сука смешно урод",
-    "Иди нахуй, пес",
-    "Ты ебанутый?",
-    "Завали ебало",
-    "Очередной даун",
-    "В рот ебал"
+    "Ты никто.",
+    "Заткнись, уебок.",
+    "Ты серьезно? Я спасаю мир, а ты пишешь эту хуйню.",
+    "Ещё слово — и ты полетишь с крыши.",
+    "Я бог. Ты — мусор.",
+    "Vought заплатит за твою риторику? Нет? Тогда иди нахуй.",
+    "Твоё мнение ничего не значит.",
+    "Ты слаб. Как и все вы.",
+    "Я всё вижу. И ты мне не нравишься.",
+    "Ещё одна такая хуйня — и ты исчезнешь."
 ]
 
 intents = discord.Intents.default()
@@ -29,7 +32,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"🪖 {bot.user} — готов!")
+    print(f"🇺🇸 {bot.user} — Я — Хоумлендер. И я здесь, чтобы навести порядок.")
 
 @bot.event
 async def on_message(message):
@@ -43,28 +46,28 @@ async def on_message(message):
     has_forbidden = any(word in content_lower for word in FORBIDDEN_WORDS)
     
     if has_forbidden:
-        # Мут на 1 минуту в любом случае
+        # Мут на 1 минуту
         try:
             await message.author.timeout(timedelta(minutes=1), reason="Запрещённое слово")
         except:
             pass
         
-        # 50% удаляем, 50% отвечаем фразой
+        # 50% удаляем, 50% отвечаем фразой Хоумлендера
         if random.random() < 0.5:
             await message.delete()
             print(f"Удалено и замучено от {message.author.name}")
         else:
             phrase = random.choice(REPLY_PHRASES)
-            await message.channel.send(f"🪖 {message.author.mention}, {phrase}")
-            print(f"Фраза и мут для {message.author.name}")
+            await message.channel.send(f"🇺🇸 **{message.author.mention}**\n{phrase}")
+            print(f"Хоумлендер уничтожил {message.author.name}")
     
     await bot.process_commands(message)
 
-# Простые команды
+# Команды
 @bot.command(name="отзовись")
 async def respond(ctx):
     if ctx.author.guild_permissions.administrator:
-        await ctx.send("Так точно!")
+        await ctx.send("🇺🇸 Я здесь. Всегда.")
 
 @bot.command(name="добавить_слово")
 async def add_word(ctx, *, word: str):
@@ -72,6 +75,7 @@ async def add_word(ctx, *, word: str):
         word_lower = word.lower()
         if word_lower not in FORBIDDEN_WORDS:
             FORBIDDEN_WORDS.append(word_lower)
+            await ctx.send(f"🇺🇸 Слово `{word_lower}` добавлено в чёрный список.")
 
 @bot.command(name="удалить_слово")
 async def remove_word(ctx, *, word: str):
@@ -79,10 +83,11 @@ async def remove_word(ctx, *, word: str):
         word_lower = word.lower()
         if word_lower in FORBIDDEN_WORDS:
             FORBIDDEN_WORDS.remove(word_lower)
+            await ctx.send(f"🇺🇸 Слово `{word_lower}` удалено.")
 
 @bot.command(name="список_слов")
 async def list_words(ctx):
     if ctx.author.guild_permissions.administrator:
-        await ctx.send(f"🪖 Слова: {', '.join(FORBIDDEN_WORDS)}")
+        await ctx.send(f"🇺🇸 Запрещённые слова: {', '.join(FORBIDDEN_WORDS)}")
 
 bot.run(TOKEN)
