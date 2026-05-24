@@ -76,7 +76,7 @@ async def on_message(message):
 async def respond(ctx):
     if not is_admin(ctx):
         return
-    await ctx.send("🇺🇸 Я здесь. Всегда. А ты, The Deep, иди корми рыб.")
+    await ctx.send("🇺🇸 Я здесь. Всегда. ")
 
 @bot.command(name="добавить_слово")
 async def add_word(ctx, *, word: str):
